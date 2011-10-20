@@ -1,35 +1,38 @@
 #include "decimal.h"
 
-uint64_t calculate_decimal(unsigned long long numerator, unsigned long long denominator, char **result)
+int64_t calculate_decimal(uint64_t numerator, uint64_t denominator, char **result)
 /* Calculates the rational number for the specified fraction, puts result in '**result' (it can be uninitialized)
  * Return: repeating pattern length (zero if the number is a terminating rational number)
  * */
 {
-        uint64_t *dividends=NULL;
-        uint64_t i=0;
-        uint64_t remainder;
-        uint64_t tmp;
-        uint64_t integer_part;
+        uint64_t *dividends=NULL; //
         uint64_t dividends_len=1;
-        char *digits=NULL, *tmp_str=NULL;
+        uint64_t i=0,tmp;
+        int64_t position=0; //where the repeating pattern begins
+        uint64_t integer_part;
+
+        char *digits=NULL, *tmp_str=NULL, *non_repeating=NULL;
         int is_terminating = 1;
 
         integer_part = numerator < denominator ? 0 : numerator / denominator;
         dividends = realloc((void*)dividends, sizeof(uint64_t));
 
-        digits = realloc((void*)digits, 4096); //allocate a whole page for maximum efficiency
-        tmp_str = realloc((void*)tmp_str, 4096);
-        memset((void*)digits, 0, 4096);
-        memset((void*)tmp_str, 0, 4096);
+        digits = realloc((void*)digits, PRECISION);
+        tmp_str = realloc((void*)tmp_str, PRECISION); // PRECISION is not necessary but convenient
+        non_repeating = realloc((void*)non_repeating, PRECISION);
+        memset((void*)non_repeating, 0, PRECISION);
+        memset((void*)digits, 0, PRECISION);
+        memset((void*)tmp_str, 0, PRECISION);
         dividends[0] = numerator - integer_part * denominator;
-        while (dividends[i] != 0)	{
-			/*
-			 * We are implementing a long division here, terminating if a dividend is zero
-			 *  (terminating rational number) or is already encountered (repeating rational number)
-			 * */
-			 
+        while (dividends[i] != 0 && strlen(digits) < PRECISION) {
+                /*
+                 * We are implementing a long division here, terminating if a dividend is zero
+                 *  (terminating rational number) or is already encountered (repeating rational number)
+                 * */
+
                 tmp = atomic_div(&dividends[i], denominator);
-                if (is_match(dividends[i], dividends,dividends_len)) {
+                position=is_match(dividends[i], dividends,dividends_len);
+                if (position > -1) {
                         is_terminating = 0;
                         break;
                 }
@@ -43,25 +46,45 @@ uint64_t calculate_decimal(unsigned long long numerator, unsigned long long deno
         if (is_terminating) {
                 sprintf(tmp_str, "%llu,%s",integer_part, digits);
                 *result = tmp_str;
-                return 0;
+                if (dividends[i] != 0) {
+                        return is_terminating_func(denominator) == 0 ? OVERFLOW_REPT : OVERFLOW_TERM;
+                }
+                return TERMINATING;
         }
 
-        sprintf(tmp_str, "%llu,(%s)",integer_part, digits);
+        //Split 'digits' into two parts: 'non_repeating' holding the static
+        //digits and 'digits' holding the repeating pattern
+        if (position != 0) {
+                non_repeating = strdup(digits);
+                non_repeating[position] = 0;
+                digits += position;
+        }
+        sprintf(tmp_str, "%llu%s%s(%s)",integer_part,DECIMAL_POINT, non_repeating, digits);
         *result = tmp_str;
         return strlen(digits);
 }
 
-uint64_t is_match(uint64_t value, uint64_t array[], uint64_t array_len)
+int64_t is_match(uint64_t value, uint64_t array[], uint64_t array_len)
 /*
- * Return 1 if a dividend is already encountered (we've found a repeating number)
+ * If 'value' is already encountered, return the position of that instance in 'array'
  * */
 {
-        uint64_t i;
+        uint64_t i=0;
         //Search for "value" in all "array" entries except the last one.
         for (i=0; i< array_len-1; i++) {
-                if (array[i] == value) return 1;
+                if (array[i] == value) return i;
         }
-        return 0;
+        return -1;
+}
+
+uint64_t is_terminating_func(uint64_t denominator)
+//This function is used when the rational number exceeds the precision threshold
+//and whether it is terminating cannot be determined with the other method
+{
+
+        while ((denominator%2 == 0) && (denominator > 1)) denominator %= 2;
+        while ((denominator%5 == 0) && (denominator > 1)) denominator %= 5;
+        return denominator == 1 ? 1 : 0;
 }
 
 uint64_t atomic_div(uint64_t *dividend, uint64_t divisor)
