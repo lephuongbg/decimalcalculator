@@ -1,28 +1,34 @@
 #include "decimal.h"
 
 int64_t calculate_decimal(uint64_t numerator, uint64_t denominator, char **result)
-/* Calculates the rational number for the specified fraction, puts result in '**result' (it can be uninitialized)
- * Return: repeating pattern length (zero if the number is a terminating rational number)
+/* Calculates the rational number for the specified fraction, puts result
+ * in '**result' (it can be uninitialized)
+ *
+ * Return: repeating pattern length (zero if the number is a terminating
+ * rational number)
  * */
 {
         uint64_t *dividends=NULL; //
         uint64_t dividends_len=1;
         uint64_t i=0,tmp;
-        int64_t position=0; //where the repeating pattern begins
+        int position=0; //where the repeating pattern begins
         uint64_t integer_part;
 
         char *digits=NULL, *tmp_str=NULL, *non_repeating=NULL;
         int is_terminating = 1;
 
         integer_part = numerator < denominator ? 0 : numerator / denominator;
-        dividends = realloc((void*)dividends, sizeof(uint64_t));
+        dividends = realloc((void*)dividends, sizeof(*dividends));
 
         digits = realloc((void*)digits, PRECISION);
         tmp_str = realloc((void*)tmp_str, PRECISION); // PRECISION is not necessary but convenient
-        non_repeating = realloc((void*)non_repeating, PRECISION);
+        non_repeating = realloc((void*)non_repeating, PRECISION); // ~ again
+
         memset((void*)non_repeating, 0, PRECISION);
         memset((void*)digits, 0, PRECISION);
         memset((void*)tmp_str, 0, PRECISION);
+
+
         dividends[0] = numerator - integer_part * denominator;
         while (dividends[i] != 0 && strlen(digits) < PRECISION) {
                 /*
@@ -44,6 +50,7 @@ int64_t calculate_decimal(uint64_t numerator, uint64_t denominator, char **resul
                 i++;
         }
         if (is_terminating) {
+                if (strlen(digits) == 0 ) digits="0"; // "3/1" = "3,0" not "3,"
                 sprintf(tmp_str, "%llu,%s",integer_part, digits);
                 *result = tmp_str;
                 if (dividends[i] != 0) {
@@ -66,11 +73,12 @@ int64_t calculate_decimal(uint64_t numerator, uint64_t denominator, char **resul
 
 int64_t is_match(uint64_t value, uint64_t array[], uint64_t array_len)
 /*
- * If 'value' is already encountered, return the position of that instance in 'array'
+ * If 'value' is already encountered, return the position of that
+ * instance in 'array'
  * */
 {
         uint64_t i=0;
-        //Search for "value" in all "array" entries except the last one.
+        //Search for 'value' in all 'array' entries except the last one (because 'value' *is* the last entry).
         for (i=0; i< array_len-1; i++) {
                 if (array[i] == value) return i;
         }
@@ -78,12 +86,15 @@ int64_t is_match(uint64_t value, uint64_t array[], uint64_t array_len)
 }
 
 uint64_t is_terminating_func(uint64_t denominator)
-//This function is used when the rational number exceeds the precision threshold
-//and whether it is terminating cannot be determined with the other method
+/*
+ * This function is used when the rational number exceeds the precision
+ * threshold and whether it is terminating cannot be determined with the
+ * other method
+ * */
 {
 
-        while ((denominator%2 == 0) && (denominator > 1)) denominator %= 2;
-        while ((denominator%5 == 0) && (denominator > 1)) denominator %= 5;
+        while ((denominator%2 == 0) && (denominator > 1)) denominator /= 2;
+        while ((denominator%5 == 0) && (denominator > 1)) denominator /= 5;
         return denominator == 1 ? 1 : 0;
 }
 
